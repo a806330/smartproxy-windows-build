@@ -1,0 +1,71 @@
+name: 构建 SmartProxy Windows 版
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '官方仓库的标签或分支'
+        required: false
+        default: 'v2.9.3'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/build-windows.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: 取 SmartProxy 官方源码
+        uses: actions/checkout@v4
+        with:
+          repository: yiguihai11/SmartProxy
+          ref: ${{ github.event.inputs.ref || 'v2.9.3' }}
+          fetch-depth: 1
+
+      - name: 安装 Go 1.27
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache: true
+
+      - name: 交叉编译 windows amd64
+        env:
+          CGO_ENABLED: '0'
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          set -e
+          go version
+          echo "== 方案1: 最小标签 with_gvisor（官方 CI 已验证可编译）=="
+          if go build -tags with_gvisor -trimpath -ldflags "-s -w" -o smartproxy-windows-amd64.exe ./cmd/smartproxy 2> build1.err; then
+            echo "BUILD_OK=plan1"
+          else
+            echo "== 方案1 失败，输出错误 =="
+            cat build1.err
+            echo "== 方案2: 官方完整标签去掉需要 CGO 的 lwip =="
+            if go build -tags with_gvisor,with_quic,with_utls,with_wireguard -trimpath -ldflags "-s -w" -o smartproxy-windows-amd64.exe ./cmd/smartproxy 2> build2.err; then
+              echo "BUILD_OK=plan2"
+            else
+              echo "== 方案2 失败，输出错误 =="
+              cat build2.err
+              echo "== 方案3: 不带任何标签 =="
+              go build -trimpath -ldflags "-s -w" -o smartproxy-windows-amd64.exe ./cmd/smartproxy
+              echo "BUILD_OK=plan3"
+            fi
+          fi
+          echo "== 产物校验 =="
+          ls -lh smartproxy-windows-amd64.exe
+          file smartproxy-windows-amd64.exe
+          sha256sum smartproxy-windows-amd64.exe
+
+      - name: 上传编译产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartproxy-windows-amd64
+          path: smartproxy-windows-amd64.exe
+          if-no-files-found: error
+          retention-days: 7
