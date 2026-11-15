@@ -73,6 +73,7 @@ jobs:
       - name: 发布为 Release 资产（主下载通道）
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG="win-build-1"
           if gh release view "$TAG" >/dev/null 2>&1; then
