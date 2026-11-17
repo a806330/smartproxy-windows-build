@@ -32,6 +32,12 @@ jobs:
           go-version: '1.27'
           cache: true
 
+      - name: 应用本地回环上游补丁
+        run: |
+          set -e
+          python3 patch_loopback.py
+          grep -n "LOCAL_LOOPBACK_PATCH" internal/upstream/proxy.go
+
       - name: 交叉编译 windows amd64
         env:
           CGO_ENABLED: '0'
@@ -75,12 +81,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          TAG="win-build-1"
+          TAG="win-build-2-patched"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" smartproxy-windows-amd64.exe --clobber
           else
             gh release create "$TAG" smartproxy-windows-amd64.exe \
-              --title "SmartProxy Windows amd64" \
-              --notes "由 GitHub Actions 从官方源码交叉编译，仅用于本机验证"
+              --title "SmartProxy Windows amd64 (patched)" \
+              --notes "由 GitHub Actions 从官方源码交叉编译：本地回环上游跳过 CN 出口误判，仅用于本机验证"
           fi
           gh release view "$TAG" --json assets --jq '.assets[].name'
